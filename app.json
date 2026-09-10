@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Todo RPG",
+    "slug": "todo-rpg",
+    "version": "0.1.0",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "web": {
+      "bundler": "metro",
+      "name": "Todo RPG",
+      "shortName": "Todo RPG"
+    },
+    "plugins": [
+      "expo-sqlite"
+    ]
+  }
+}

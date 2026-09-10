@@ -1,0 +1,17 @@
+node_modules/
+.expo/
+.playwright-mcp/
+dist/
+web-build/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+work/
+outputs/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
