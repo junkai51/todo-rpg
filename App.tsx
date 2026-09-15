@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, AppState, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { randomUUID } from 'expo-crypto';
 import { emptyState, isCompletion, type Action, type EditorInput, type Routine, type Todo } from './src/domain/reality';
@@ -37,8 +37,14 @@ export default function App() {
     }
     refreshClock();
     const subscription = AppState.addEventListener('change', value => { if (value === 'active') refreshClock(); });
-    if (typeof window !== 'undefined') window.addEventListener('focus', refreshClock);
-    return () => { clearTimeout(timer); subscription.remove(); if (typeof window !== 'undefined') window.removeEventListener('focus', refreshClock); };
+    // React Native defines window too, but it does not provide DOM event listeners.
+    const browserWindow = Platform.OS === 'web' && typeof window !== 'undefined' ? window : null;
+    browserWindow?.addEventListener('focus', refreshClock);
+    return () => {
+      clearTimeout(timer);
+      subscription.remove();
+      browserWindow?.removeEventListener('focus', refreshClock);
+    };
   }, []);
   async function run(action: Action, feedback: string) {
     if (inFlight.current || (!ready && action.type !== 'reset')) return false;

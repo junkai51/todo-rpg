@@ -51,6 +51,8 @@ Routine 保存 `scheduleHistory`，包括创建、日程变更、停用和启用
 
 所有操作由纯领域函数处理，UI 通过 repository 在数据库事务中保存结果。
 
+pending event coalescing 表示“最终待确认事实”，不是完整用户操作日志。例如反复完成、取消完成和修改，不会保留全部中间操作，不能据此重建点击流水或统计尝试次数。已提交事件是最终事实快照，也不是完整 event sourcing 操作历史。Routine 的 scheduleHistory 专门记录日程生效版本，不改变 pending 的这一语义。
+
 | 事件 | 来源 | 后续是否可作为完成事实 |
 | --- | --- | --- |
 | `TODO_PLANNED` / `TODO_UPDATED` / `TODO_CANCELLED` | Todo 的计划、调整或取消 | 否 |
@@ -132,7 +134,20 @@ Routine 保存 `scheduleHistory`，包括创建、日程变更、停用和启用
 
 游戏预算、角色属性、升级、战斗、装备、经济、世界题材、Quest 阶段／数量、模型供应商、prompt、Python／FastAPI 接入时机继续留白，不因搭建 Reality 层提前冻结。
 
-## 8. 决策记录
+## 8. 架构演进的触发条件
+
+当前 Reality MVP 的目录和领域结构保持不变，不提前拆模块、重命名或正规化存储。
+
+| 触发条件 | 届时执行的调整 | 当前处理 |
+| --- | --- | --- |
+| 创建第一个 Game Domain 文件 | 将 `src/domain` 重组为 `src/domain/reality` 与 `src/domain/game`，同步调整导入 | 保留当前扁平结构，不建空目录 |
+| 创建第一个 Game UI | 业务 UI 移到 `src/features/reality` / `src/features/game`；`src/ui` 只保留通用 primitive | 保留当前 `src/ui`，届时按实际复用判断组件归属 |
+| Game Turn 建模之前 | 与用户重新确认 `RealityTurn` 命名，优先考虑 `RealitySubmission`，区分现实提交批次与游戏回合 | 不立即重命名类型、字段或 UI，不预设一对一关系 |
+| GameEvent／history 规模实际增长 | 根据实际查询、写入和历史读取成本评估正规化存储 | 保持 JSON-blob repository 和现有事务边界 |
+
+README 保持项目介绍、运行方式、架构、当前状态及文档入口；日期化验收和测试记录写入 [devlog.md](devlog.md)，避免 README 成为开发流水账。
+
+## 9. 决策记录
 
 | 日期 | 决定 |
 | --- | --- |

@@ -19,6 +19,7 @@ function details(input: Details): Details {
   if (input.difficulty !== null && ![1, 2, 3, 4].includes(input.difficulty)) throw new Error('难度须为 1–4 级。');
   return { title, description, difficulty: input.difficulty };
 }
+// Coalesce final facts awaiting confirmation; this is not an operation audit log.
 function pending(state: RealityState, event: RealityEvent) {
   return [...state.pending.filter(item => item.key !== event.key), event];
 }

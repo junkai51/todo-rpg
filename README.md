@@ -38,11 +38,7 @@ npm run build:web
 
 自动测试覆盖独立日程窗口、跨日、星期规则、过期拒绝、事件区分、快照隔离、排序、事务持久化、并发提交／完成、旧格式一次性清空和调试清空。
 
-2026-09-15：25 项测试、类型检查与 Web 导出通过；正式构建验证了旧记录清空、新数据刷新保留、确认不续建 occurrence，以及隐藏调试入口。
-
-“每 N 天”的浏览器验收已覆盖输入校验、编辑回读、跨日窗口与刷新持久化。
-
-浏览器验收包含桌面／390px 窄屏、新建编辑、Today 窗口过滤、非执行日 Routine 管理、确认后清理、模拟跨日、刷新恢复、调试和清空后重新使用。iPhone 原生尚未通过真机或模拟器验收。
+验收记录与修复历史见 [开发日志](docs/devlog.md)。iPhone 原生仍待真机或模拟器完整验收。
 
 ## 代码位置
 
@@ -59,4 +55,14 @@ src/ui/TodayList.tsx             统一展示投影
 src/ui/DebugPanel.tsx            卡片调试与一键清空
 tests/                           领域与存储测试
 docs/design.md                   单一设计基线
+docs/devlog.md                   开发与验收记录
 ```
+
+## 演进约定与文档
+
+当前 `src/domain`、`src/ui` 和 JSON-blob repository 保持不变。新增第一个 Game Domain 文件时再分 `src/domain/reality` / `src/domain/game`；新增第一个 Game UI 时再将业务 UI 移到 `src/features/reality` / `src/features/game`，`src/ui` 留作通用 primitive。
+
+Game Turn 建模前重新确认 `RealityTurn` 命名，优先考虑 `RealitySubmission`；现在不重命名。pending event coalescing 保存的是“最终待确认事实”，不是完整用户操作日志。存储正规化等 GameEvent／history 规模实际增长后再评估。
+
+- [设计基线](docs/design.md)：领域语义、当前边界与演进触发条件。
+- [开发日志](docs/devlog.md)：日期化的验证结果和修复记录。
