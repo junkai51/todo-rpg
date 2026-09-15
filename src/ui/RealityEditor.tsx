@@ -21,10 +21,12 @@ export function RealityEditor({ entity, busy, error, onClose, onSave, onToggle }
   const [startDate, setStartDate] = useState(existingSchedule?.startDate ?? localDate(new Date().toISOString()));
   const [frequency, setFrequency] = useState<Schedule['frequency']>(existingSchedule?.frequency ?? 'daily');
   const [days, setDays] = useState<Weekday[]>(existingSchedule?.frequency === 'weekly' ? existingSchedule.weekdays : []);
+  const [intervalDays, setIntervalDays] = useState(String(existingSchedule?.frequency === 'interval' ? existingSchedule.intervalDays : 2));
   async function save() {
     const shared = { title, description, difficulty };
     const schedule: Schedule = frequency === 'weekly'
       ? { version: 1, calendar: 'local', startDate, frequency, weekdays: days }
+      : frequency === 'interval' ? { version: 1, calendar: 'local', startDate, frequency, intervalDays: Number(intervalDays) }
       : { version: 1, calendar: 'local', startDate, frequency: 'daily' };
     if (await onSave(kind === 'todo' ? { ...shared, kind, dueAt: dueAt || null } : { ...shared, kind, schedule })) onClose();
   }
@@ -43,10 +45,12 @@ export function RealityEditor({ entity, busy, error, onClose, onSave, onToggle }
           {!!dueAt && <Button label="清除日期" small disabled={busy} onPress={() => setDueAt('')} />}</View></>
           : <><Text style={styles.label}>日程</Text><View style={styles.options}>
             <Button label="每天" selected={frequency === 'daily'} disabled={busy} small onPress={() => setFrequency('daily')} />
+            <Button label="每 N 天" selected={frequency === 'interval'} disabled={busy} small onPress={() => setFrequency('interval')} />
             <Button label="指定星期" selected={frequency === 'weekly'} disabled={busy} small onPress={() => setFrequency('weekly')} />
           </View>{frequency === 'weekly' && <View style={styles.options}>{weekdays.map(day => <Button key={day} label={dayNames[day]} selected={days.includes(day)} disabled={busy} small onPress={() => setDays(days.includes(day) ? days.filter(d => d !== day) : [...days, day])} />)}</View>}
+          {frequency === 'interval' && <View style={styles.intervalRow}><Text style={styles.help}>每</Text><TextInput accessibilityLabel="间隔天数" value={intervalDays} onChangeText={setIntervalDays} editable={!busy} keyboardType="number-pad" maxLength={3} style={[styles.input, styles.intervalInput]} /><Text style={styles.help}>天（1–365）</Text></View>}
           <Text style={styles.label}>开始日期</Text><DateField label="开始日期" value={startDate} onChange={setStartDate} disabled={busy} />
-          <Text style={styles.help}>在日程指定的当天执行。完成后等待下一个有效日期，不随轮次确认提前出现。</Text></>}
+          <Text style={styles.help}>以开始日期为日程起点，在指定的当天执行。完成后等待下一个有效日期，不随轮次确认提前出现。</Text></>}
       </ScrollView>
       <View style={styles.footer}><View style={styles.statusAction}>{entity && <Button kind="danger" disabled={busy}
         label={entity.kind === 'routine' ? entity.status === 'active' ? '停用例行事项' : '启用例行事项' : entity.status === 'cancelled' ? '恢复事项' : '取消事项'}

@@ -114,3 +114,34 @@ test('自然日窗口适应夏令时的 23 小时和 25 小时日', () => {
     assert.equal((Date.parse(fall.endsAt) - Date.parse(fall.startsAt)) / 3600000, 25);
   } finally { if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous; }
 });
+
+test('每 N 天以开始日期对齐，跨月闰日正确，不随完成或提交重置', () => {
+  const input = routineInput('隔三天');
+  input.schedule = { version: 1, calendar: 'local', frequency: 'interval', intervalDays: 3, startDate: '2026-09-15' };
+  let { state, routine } = setup(input);
+  const complete = command({ type: 'completeRoutine', id: routine.id, occurrenceId: currentOccurrence(routine, now)!.id });
+  state = applyCommand(state, complete);
+  state = applyCommand(state, command({ type: 'submit' }));
+  assert.equal(todayItems(state, now).length, 0);
+  assert.equal(todayItems(state, at('2026-09-16')).length, 0);
+  assert.equal(todayItems(state, at('2026-09-18')).length, 1);
+  assert.equal(todayItems(state, at('2026-09-30')).length, 1);
+  assert.equal(state.routines.length, 1);
+});
+
+test('每 N 天校验、编辑回读与历史隔离', async () => {
+  const { validateSchedule, matchesSchedule, scheduleLabel } = await import('../src/domain/schedule');
+  const schedule = { version: 1 as const, calendar: 'local' as const, frequency: 'interval' as const, intervalDays: 3, startDate: '2028-02-27' };
+  assert.equal(matchesSchedule(schedule, '2028-03-01'), true);
+  assert.equal(matchesSchedule(schedule, '2028-02-29'), false);
+  assert.equal(scheduleLabel(schedule), '每 3 天');
+  for (const intervalDays of [0, -1, 1.5, NaN, 366]) assert.throws(() => validateSchedule({ ...schedule, intervalDays }), /间隔/);
+  assert.equal(matchesSchedule({ ...schedule, intervalDays: 1 }, '2028-02-29'), true);
+  let { state, routine } = setup();
+  state = applyCommand(state, command({ type: 'submit' }));
+  const history = JSON.stringify(state.turns);
+  state = applyCommand(state, command({ type: 'editRoutine', id: routine.id, input: { ...routineInput(), schedule } }));
+  assert.deepEqual(state.routines[0].schedule, schedule);
+  assert.equal(state.routines[0].scheduleHistory.length, 2);
+  assert.equal(JSON.stringify(state.turns), history);
+});

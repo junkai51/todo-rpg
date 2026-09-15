@@ -71,7 +71,7 @@ export default function App() {
       <View style={styles.toolbar}>
         <Button label={manage ? '返回 Today' : `例行事项（${state.routines.length}）`} small selected={manage} onPress={() => setManage(!manage)} />
         {!manage && <><Button label={sorting ? '结束排序' : '调整排序'} selected={sorting} small disabled={busy || !items.length} onPress={() => setSorting(!sorting)} />
-          <Button label={`${showEnded ? '隐藏' : '显示'}待确认已结束（${endedCount}）`} small onPress={() => setShowEnded(!showEnded)} /></>}
+          <Button label={`${showEnded ? '隐藏' : '显示'}已结束（${endedCount}）`} small onPress={() => setShowEnded(!showEnded)} /></>}
         {__DEV__ && <View style={styles.debugButton}><Button label={showDebug ? '关闭调试' : '调试'} small onPress={() => setShowDebug(!showDebug)} /></View>}
       </View>
       {!!error && !editor && <View style={styles.errorBox}><Text accessibilityRole="alert" style={styles.error}>{error}</Text>{!ready && <Button label="重新读取" onPress={() => void load()} />}</View>}
