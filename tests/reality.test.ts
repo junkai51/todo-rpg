@@ -1,62 +1,64 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { applyCommand, emptyState, type Action, type Command } from '../src/domain/reality';
+import { applyCommand, emptyState } from '../src/domain/reality';
+import { todayItems } from '../src/domain/today';
+import { command, now, todoInput, routineInput } from './helpers';
 
-let sequence = 0;
-const command = (action: Action): Command => ({ id: `op-${++sequence}`, at: '2026-09-10T12:00:00Z', action });
-
-test('确认前反复完成和修改，只提交最终有效状态', () => {
-  const create = command({ type: 'create', title: '  读论文  ', note: '' });
+test('Todo 确认前反复完成、编辑、撤销，只提交最终有效事件', () => {
+  const create = command({ type: 'createTodo', input: todoInput() });
   let state = applyCommand(emptyState(), create);
-  state = applyCommand(state, command({ type: 'status', taskId: create.id, status: 'completed' }));
-  state = applyCommand(state, command({ type: 'edit', taskId: create.id, title: '读论文', note: '今天先读摘要' }));
-  state = applyCommand(state, command({ type: 'status', taskId: create.id, status: 'todo' }));
+  state = applyCommand(state, command({ type: 'todoStatus', id: create.id, status: 'completed' }));
+  assert.equal(state.pending[0].type, 'TODO_COMPLETED');
+  state = applyCommand(state, command({ type: 'editTodo', id: create.id, input: { ...todoInput(), description: '修改后的描述' } }));
+  state = applyCommand(state, command({ type: 'todoStatus', id: create.id, status: 'todo' }));
   assert.equal(state.pending.length, 1);
-  assert.equal(state.pending[0].completedAt, null);
+  assert.equal(state.pending[0].type, 'TODO_UPDATED');
   state = applyCommand(state, command({ type: 'submit' }));
-  assert.equal(state.turns[0].records[0].status, 'todo');
-  assert.equal(state.turns[0].records[0].note, '今天先读摘要');
-  assert.equal(state.tasks[0].closed, false);
+  assert.equal(state.turns[0].events[0].subject.description, '修改后的描述');
+  assert.equal(state.todos[0].archivedAt, null);
 });
-
-test('提交快照不随后续修改改变，未完成事项可进入下一轮', () => {
-  const create = command({ type: 'create', title: '阅读', note: '旧备注' });
-  let state = applyCommand(emptyState(), create);
-  state = applyCommand(state, command({ type: 'submit' }));
-  const oldTurn = JSON.stringify(state.turns[0]);
-  state = applyCommand(state, command({ type: 'edit', taskId: create.id, title: '阅读新材料', note: '新备注' }));
-  assert.equal(JSON.stringify(state.turns[0]), oldTurn);
-  assert.equal(state.pending[0].title, '阅读新材料');
-});
-
-test('重复提交和延迟重试都不能再次消费记录', () => {
-  let state = applyCommand(emptyState(), command({ type: 'create', title: '第一件事', note: '' }));
-  const submit = command({ type: 'submit' });
-  state = applyCommand(state, submit);
-  state = applyCommand(state, command({ type: 'submit' }));
-  assert.equal(state.turns.length, 1);
-  state = applyCommand(state, command({ type: 'create', title: '下一轮的事', note: '' }));
-  state = applyCommand(state, submit);
-  assert.equal(state.turns.length, 1);
-  assert.equal(state.pending.length, 1);
-});
-
-test('已提交的完成或取消记录不能再次打开', () => {
+test('提交后已完成和取消的 Todo 清出 Today，历史保留且不可重新打开', () => {
   for (const status of ['completed', 'cancelled'] as const) {
-    const create = command({ type: 'create', title: '事项', note: '' });
+    const create = command({ type: 'createTodo', input: todoInput() });
     let state = applyCommand(emptyState(), create);
-    state = applyCommand(state, command({ type: 'status', taskId: create.id, status }));
+    state = applyCommand(state, command({ type: 'todoStatus', id: create.id, status }));
+    assert.equal(todayItems(state, now).length, 1);
     state = applyCommand(state, command({ type: 'submit' }));
-    assert.throws(() => applyCommand(state, command({ type: 'status', taskId: create.id, status: 'todo' })), /已提交/);
-    assert.equal(state.turns[0].records[0].status, status);
+    assert.equal(todayItems(state, now).length, 0);
+    assert.equal(state.todos.length, 1);
+    assert.equal(state.turns[0].events.length, 1);
+    assert.throws(() => applyCommand(state, command({ type: 'todoStatus', id: create.id, status: 'todo' })), /已确认/);
   }
 });
-
-test('无效输入不会改变原状态；重放同一新增命令不重复创建', () => {
+test('未结束 Todo 可继续编辑，不改写历史；命令与提交重试不重复消费', () => {
+  const create = command({ type: 'createTodo', input: todoInput() });
+  let state = applyCommand(emptyState(), create);
+  assert.equal(applyCommand(state, create).todos.length, 1);
+  const submit = command({ type: 'submit' });
+  state = applyCommand(state, submit);
+  const history = JSON.stringify(state.turns);
+  state = applyCommand(state, command({ type: 'editTodo', id: create.id, input: todoInput('更新') }));
+  state = applyCommand(state, submit);
+  assert.equal(state.pending.length, 1);
+  assert.equal(JSON.stringify(state.turns), history);
+});
+test('校验拒绝空标题、非法日期、难度和星期，不修改状态', () => {
   const initial = emptyState();
-  assert.throws(() => applyCommand(initial, command({ type: 'create', title: '   ', note: '' })), /标题/);
+  assert.throws(() => applyCommand(initial, command({ type: 'createTodo', input: todoInput(' ') })), /标题/);
+  assert.throws(() => applyCommand(initial, command({ type: 'createTodo', input: { ...todoInput(), dueAt: '2026-02-29' } })), /日期/);
+  assert.throws(() => applyCommand(initial, command({ type: 'createTodo', input: { ...todoInput(), difficulty: 5 as 4 } })), /难度/);
+  assert.throws(() => applyCommand(initial, command({ type: 'createRoutine', input: { ...routineInput(), schedule: { version: 1, calendar: 'local', startDate: '2026-09-15', frequency: 'weekly', weekdays: [] } } })), /星期/);
   assert.deepEqual(initial, emptyState());
-  const create = command({ type: 'create', title: '有效事项', note: '' });
-  const state = applyCommand(initial, create);
-  assert.equal(applyCommand(state, create).tasks.length, 1);
+});
+test('Todo 和 Routine 统一展示与排序，但各自持久化，排序不产生现实事件', () => {
+  const a = command({ type: 'createTodo', input: todoInput('A') });
+  const b = command({ type: 'createRoutine', input: routineInput('B') });
+  let state = applyCommand(applyCommand(emptyState(), a), b);
+  assert.deepEqual(todayItems(state, now).map(x => x.subject.title), ['B', 'A']);
+  const pending = JSON.stringify(state.pending);
+  state = applyCommand(state, command({ type: 'move', id: a.id, direction: 'up' }));
+  assert.deepEqual(todayItems(state, now).map(x => x.subject.title), ['A', 'B']);
+  assert.equal(JSON.stringify(state.pending), pending);
+  state = applyCommand(state, command({ type: 'todoStatus', id: a.id, status: 'completed' }));
+  assert.deepEqual(todayItems(state, now).map(x => x.subject.title), ['B', 'A']);
 });

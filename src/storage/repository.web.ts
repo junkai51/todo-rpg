@@ -1,4 +1,4 @@
-import { applyCommand, readStoredState, type Command, type RealityState } from '../domain/reality';
+import { applyCommand, emptyState, readStoredState, type Command, type RealityState } from '../domain/reality';
 
 export function createWebRepository(name = 'todo-rpg-v1', factory?: IDBFactory) {
   let connection: Promise<IDBDatabase> | undefined;
@@ -28,16 +28,19 @@ export function createWebRepository(name = 'todo-rpg-v1', factory?: IDBFactory) 
   async function transact(command?: Command): Promise<RealityState> {
     const db = await open();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction('reality', command ? 'readwrite' : 'readonly');
+      const tx = db.transaction('reality', 'readwrite');
       const store = tx.objectStore('reality');
       const request = store.get('current');
       let result: RealityState;
       let failure: unknown;
       request.onsuccess = () => {
         try {
-          const current = readStoredState(request.result);
+          const resetting = command?.action.type === 'reset';
+          const current = resetting ? emptyState() : readStoredState(request.result);
           result = command ? applyCommand(current, command) : current;
-          if (command && result !== current) store.put(result, 'current');
+          const migrating = !resetting && request.result && request.result.version !== current.version;
+          if (resetting || migrating) store.clear();
+          if (migrating || (command && result !== current)) store.put(result, 'current');
         } catch (error) { failure = error; tx.abort(); }
       };
       // Resolve only when the whole transaction commits, never on put success.
